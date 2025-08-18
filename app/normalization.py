@@ -4,6 +4,9 @@ ALIAS_FALLBACKS = {
     "paracetamol": "acetaminophen",
     "clavulanic acid": "clavulanate potassium",
     "amoxycillin": "amoxicillin",
+    "azithromycine": "azithromycin",
+    "ranitidine hcl": "ranitidine",
+    "ranitidine hydrochloride": "ranitidine",
 }
 
 def norm_term(s: str) -> str:
