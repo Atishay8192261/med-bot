@@ -27,6 +27,8 @@ class Brand(BaseModel):
     manufacturer: Optional[str] = None
     discontinued: bool
     salts: List[Salt] = []
+    rxcuis: Optional[List[str]] = None
+    salt_signature: Optional[str] = None
 
 @app.get("/health")
 def health():
@@ -44,7 +46,8 @@ def resolve(name: str = Query(..., min_length=2)):
     out = []
     with db() as conn, conn.cursor() as cur:
         cur.execute("""
-          SELECT id, brand_name, strength, dosage_form, pack, mrp_inr, manufacturer, discontinued
+          SELECT id, brand_name, strength, dosage_form, pack, mrp_inr, manufacturer, discontinued,
+                 rxcuis, salt_signature
           FROM products_in
           WHERE brand_name ILIKE %s
           ORDER BY brand_name
@@ -67,11 +70,13 @@ def resolve(name: str = Query(..., min_length=2)):
             salts_map.setdefault(pid, []).append(Salt(salt_pos=pos, salt_name=sname))
 
         for r in rows:
-            pid, bn, st, df, pk, mrp, mf, disc = r
+            pid, bn, st, df, pk, mrp, mf, disc, rxs, sig = r
             out.append(Brand(
                 id=pid, brand_name=bn, strength=st, dosage_form=df, pack=pk,
                 mrp_inr=float(mrp) if mrp is not None else None,
                 manufacturer=mf, discontinued=bool(disc),
-                salts=salts_map.get(pid, [])
+                salts=salts_map.get(pid, []),
+                rxcuis=rxs if rxs is not None else None,
+                salt_signature=sig
             ).model_dump())
     return {"matches": out}
