@@ -1,4 +1,4 @@
-import os, time, json, requests, psycopg
+import os, time, json, random, requests, psycopg
 from typing import List, Tuple
 from dotenv import load_dotenv
 from .normalization import norm_term, alias_if_needed
@@ -22,7 +22,8 @@ def http_get(url: str, params: dict, tries: int = 3, pause: float = 0.6):
             last = r
         except requests.RequestException as e:
             last = e
-        time.sleep(pause)
+    # exponential backoff with jitter
+    time.sleep(pause + random.uniform(0, pause/2))
     if hasattr(last, "raise_for_status"):
         last.raise_for_status()
     raise RuntimeError(f"HTTP failed for {url} params={params} last={last}")
@@ -63,8 +64,12 @@ def rxnorm_lookup(term: str) -> Tuple[List[str], dict | None]:
         return cached, None
 
     # primary try: approximateTerm
-    r = http_get(f"{RX_BASE}/approximateTerm.json", {"term": term, "maxEntries": 5})
-    data = r.json()
+    try:
+        r = http_get(f"{RX_BASE}/approximateTerm.json", {"term": term, "maxEntries": 5})
+        data = r.json()
+    except Exception as e:
+        cache_err(key, f"http_error:{e.__class__.__name__}")
+        return [], None
     cands = data.get("approximateGroup", {}).get("candidate", []) or []
     rxcuis: List[str] = []
     for c in cands:
@@ -76,8 +81,11 @@ def rxnorm_lookup(term: str) -> Tuple[List[str], dict | None]:
     if not rxcuis:
         alias = alias_if_needed(key)
         if alias:
-            r = http_get(f"{RX_BASE}/approximateTerm.json", {"term": alias, "maxEntries": 5})
-            data = r.json()
+            try:
+                r = http_get(f"{RX_BASE}/approximateTerm.json", {"term": alias, "maxEntries": 5})
+                data = r.json()
+            except Exception:
+                pass
             cands = data.get("approximateGroup", {}).get("candidate", []) or []
             for c in cands:
                 rxcui = c.get("rxcui")

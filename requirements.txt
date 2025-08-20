@@ -22,3 +22,14 @@ xmltodict==0.14.2
 fastapi==0.115.2
 uvicorn==0.30.6
 psycopg[binary]==3.2.3
+pdfplumber==0.11.0
+pytest==8.3.2
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0
+alembic==1.13.2
+SQLAlchemy==2.0.34
+pdfminer.six==20240706
+opensearch-py==2.7.1
+langgraph==0.2.33
+regex==2024.7.24

@@ -3,6 +3,8 @@ from typing import Optional, Dict, Any, Tuple
 from dotenv import load_dotenv
 from lxml import html
 from .normalization import norm_term
+from .dailymed_client import search_label, get_sections_by_setid
+from .openfda_client import fetch_by_ingredient
 
 load_dotenv()
 
@@ -170,3 +172,27 @@ def get_or_fetch_ingredient_topic(ingredient: str) -> Optional[Dict[str, Any]]:
     payload = {"title": title or "MedlinePlus Topic", "url": url, "sections": sections}
     cache_ing_put(key, payload["title"], payload["url"], raw, sections)
     return payload
+
+def get_or_fetch_ingredient_topic_with_fallback(ingredient: str) -> Optional[Dict[str, Any]]:
+    primary = get_or_fetch_ingredient_topic(ingredient)
+    if primary and primary.get("sections"):
+        return primary
+    # DailyMed fallback
+    hit = search_label(ingredient)
+    if hit and (sid := hit.get("setid")):
+        sections = get_sections_by_setid(sid)
+        if sections:
+            return {
+                "title": f"{ingredient} (DailyMed)",
+                "url": f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={sid}",
+                "sections": sections,
+            }
+    # openFDA fallback
+    sec = fetch_by_ingredient(ingredient)
+    if sec:
+        return {
+            "title": f"{ingredient} (openFDA)",
+            "url": "https://api.fda.gov/drug/label",
+            "sections": sec,
+        }
+    return primary

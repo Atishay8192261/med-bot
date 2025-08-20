@@ -7,6 +7,16 @@ ALIAS_FALLBACKS = {
     "azithromycine": "azithromycin",
     "ranitidine hcl": "ranitidine",
     "ranitidine hydrochloride": "ranitidine",
+    # Additional Indian market and spelling variants
+    "metformin hcl": "metformin",
+    "metformin hydrochloride": "metformin",
+    "diclofenac sodium": "diclofenac",
+    "diclofenac potassium": "diclofenac",
+    "ibuprofen lysine": "ibuprofen",
+    "amox-clav": "amoxicillin clavulanate",
+    "amoxicillin clavulanic acid": "amoxicillin clavulanate",
+    "clavulanate potassium": "clavulanate",  # normalize form
+    "acetylsalicylic acid": "aspirin",
 }
 
 def norm_term(s: str) -> str:

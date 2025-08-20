@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional
-from .medline_client import get_or_fetch_ingredient_topic
+from .medline_client import get_or_fetch_ingredient_topic_with_fallback as get_or_fetch_ingredient_topic
 
 def compose_for_signature(ingredients: List[str]) -> Optional[Dict[str, Any]]:
     got: List[Dict[str, Any]] = []
@@ -24,4 +24,11 @@ def compose_for_signature(ingredients: List[str]) -> Optional[Dict[str, Any]]:
                 final["sections"][bucket] = sec
                 break
 
+    # De-duplicate sources preserving order
+    seen = set()
+    uniq = []
+    for u in final["sources"]:
+        if u and u not in seen:
+            uniq.append(u); seen.add(u)
+    final["sources"] = uniq
     return final
