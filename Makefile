@@ -24,3 +24,11 @@ reindex:
 smoke-search:
 	curl -s 'http://localhost:8000/health' | jq '.search_backend,.search_ok'
 	curl -s 'http://localhost:8000/search?query=para&limit=3' | jq '.'
+
+# Fast deterministic unit-ish tests (no network / no OpenAI required)
+test-fast:
+	pytest -q tests/test_intent_and_safety.py tests/test_price_summary.py
+
+# Run LLM rewrite test (requires OPENAI_API_KEY + LLM_ENABLED=1)
+test-llm:
+	LLM_ENABLED=1 pytest -q tests/test_llm_rewrite.py
