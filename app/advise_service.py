@@ -79,31 +79,40 @@ def advise_for(signature: str, brand_name: Optional[str], intent: str, red_flag:
         _cache_put(f"alt:{signature}", alt)
 
     if red_flag and intent in ("how_to_take", "precautions", "summary", "uses", "side_effects"):
-        text = (
+        core_text = (
             "I can’t provide personalized dosing, pregnancy/child safety, or condition‑specific guidance. "
             "Please consult a licensed clinician or pharmacist."
         )
     else:
         if intent == "uses":
-            text = build_summary_text(brand_name or signature, salt_names, monosec)
+            core_text = build_summary_text(brand_name or signature, salt_names, monosec)
         elif intent == "side_effects":
-            text = build_side_effects_text(monosec) or "Side‑effects information was not available."
+            core_text = build_side_effects_text(monosec) or "Side‑effects information was not available."
         elif intent == "how_to_take":
-            text = build_how_to_take_text(monosec) or "Administration guidance was not available."
+            core_text = build_how_to_take_text(monosec) or "Administration guidance was not available."
         elif intent == "precautions":
-            text = build_precautions_text(monosec) or "Precautions information was not available."
+            core_text = build_precautions_text(monosec) or "Precautions information was not available."
         elif intent == "cheaper":
-            text = build_cheaper_text(signature, salt_names, alt)
+            core_text = build_cheaper_text(signature, salt_names, alt)
         else:  # summary
-            text = build_summary_text(brand_name or signature, salt_names, monosec)
+            core_text = build_summary_text(brand_name or signature, salt_names, monosec)
+
+    srcs = mono.get("sources", [])
+    # Ensure deterministic ordering & de-dup
+    seen = set(); ordered = []
+    for s in srcs:
+        if s and s not in seen:
+            ordered.append(s); seen.add(s)
+    sources_line = "Sources: " + (", ".join(ordered) if ordered else "(none)")
+    full_answer = f"{core_text}\n\n{sources_line}\n\nDisclaimer: {DISCLAIMER}".strip()
 
     return {
         "intent": intent,
         "signature": signature,
         "brand": brand_name,
         "salts": salt_names,
-        "answer": text,
-        "sources": mono.get("sources", []),
+        "answer": full_answer,
+        "sources": ordered,
         "alternatives": alt,
         "disclaimer": DISCLAIMER,
     }
