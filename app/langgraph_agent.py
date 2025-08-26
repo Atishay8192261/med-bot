@@ -3,6 +3,7 @@ import os, re, requests
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
+from app.llm_service import build_llm_service
 
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
 
@@ -130,13 +131,26 @@ _graph.add_node("fetch_monograph", node_fetch_monograph)
 _graph.add_node("fetch_alternatives", node_fetch_alternatives)
 _graph.add_node("compose", node_compose)
 _graph.add_node("output", node_output)
+_LLM = build_llm_service()
+
+def node_rewrite_fluency(state: AgentState) -> AgentState:
+    if not state.answer or _LLM is None:
+        return state
+    try:
+        state.answer = _LLM.rewrite(state.answer)
+    except Exception:
+        pass
+    return state
+
+_graph.add_node("rewrite_fluency", node_rewrite_fluency)
 
 _graph.set_entry_point("parse")
 _graph.add_edge("parse", "resolve_signature")
 _graph.add_edge("resolve_signature", "fetch_monograph")
 _graph.add_edge("fetch_monograph", "fetch_alternatives")
 _graph.add_edge("fetch_alternatives", "compose")
-_graph.add_edge("compose", "output")
+_graph.add_edge("compose", "rewrite_fluency")
+_graph.add_edge("rewrite_fluency", "output")
 _graph.add_edge("output", END)
 
 app_graph = _graph.compile()

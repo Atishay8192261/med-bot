@@ -239,8 +239,8 @@ class OpenSearchService(SearchService):
 
 def build_search_service() -> SearchService:
     backend = os.getenv("SEARCH_BACKEND", "os").lower()
-    conn = os.getenv("DATABASE_URL") or "postgresql://appuser:apppass@localhost:5432/medbot"
     if backend == "pg":
+        conn = os.getenv("DATABASE_URL") or "postgresql://appuser:apppass@localhost:5432/medbot"
         return PGSearchService(conn)
     url = os.getenv("OS_URL", "http://localhost:9200")
     user = os.getenv("OS_USER", "admin")
@@ -248,9 +248,10 @@ def build_search_service() -> SearchService:
     pref = os.getenv("OS_INDEX_PREFIX", "medbot")
     try:
         svc = OpenSearchService(url, user, pwd, pref)
-        if not svc.is_alive():
-            raise RuntimeError("OpenSearch ping failed")
-        return svc
-    except Exception as e:
-        log.warning("Falling back to PGSearchService due to OpenSearch error: %s", e)
-        return PGSearchService(conn)
+        if hasattr(svc, "client") and svc.client.ping():
+            return svc
+    except Exception:
+        pass
+    conn = os.getenv("DATABASE_URL") or "postgresql://appuser:apppass@localhost:5432/medbot"
+    log.warning("OpenSearch unavailable, falling back to PGSearchService")
+    return PGSearchService(conn)

@@ -29,7 +29,8 @@ opentelemetry-sdk==1.27.0
 opentelemetry-instrumentation-fastapi==0.48b0
 alembic==1.13.2
 SQLAlchemy==2.0.34
-pdfminer.six==20240706
+pdfminer.six==20231228
 opensearch-py==2.7.1
 langgraph==0.2.33
 regex==2024.7.24
+openai>=1.40.0
