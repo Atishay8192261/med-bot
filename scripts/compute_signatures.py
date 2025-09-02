@@ -94,14 +94,28 @@ def compute(args):
             rxcui_set: set[str] = set()
             missing: list[str] = []
             for _, salt in rec["salts"]:
-                try:
-                    rxcuis, _ = rxnorm_lookup(salt)
-                except Exception as e:  # network / transient
-                    rxcuis = []
-                if rxcuis:
-                    rxcui_set.add(rxcuis[0])  # deterministic pick first
-                else:
-                    missing.append(salt)
+                # Heuristic: if multiple internal stretches of >2 spaces, treat as composite and split
+                parts = [salt]
+                if "  " in salt.strip():  # any double space suggests potential concatenation artifact
+                    # collapse whitespace then attempt simple token split if it appears to be two capitalized words groups
+                    import re
+                    compact = re.sub(r"\s+", " ", salt.strip())
+                    # Special case: patterns like "Centbucridine Feracrylum" should split
+                    if " " in compact:
+                        parts = [p.strip() for p in compact.split(" ") if p.strip()]
+                        # Rejoin contiguous capitalized sequences heuristically into two logical drug names if >2 tokens
+                        if len(parts) > 2:
+                            # fallback to original if ambiguous
+                            parts = [compact]
+                for part in parts:
+                    try:
+                        rxcuis, _ = rxnorm_lookup(part)
+                    except Exception:
+                        rxcuis = []
+                    if rxcuis:
+                        rxcui_set.add(rxcuis[0])
+                    else:
+                        missing.append(part)
             rxcuis_sorted = sorted(rxcui_set)
             batch_updates.append((pid, rxcuis_sorted))
             if missing:

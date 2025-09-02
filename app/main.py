@@ -241,18 +241,31 @@ def monograph(signature: Optional[str] = None, name: Optional[str] = None):
 from typing import Any
 
 def salts_by_signature(sig: str) -> List[Dict[str, Any]]:
+    import re
     with db() as conn, conn.cursor() as cur:
         cur.execute(
             """
-          SELECT DISTINCT ps.salt_name, ps.salt_pos
+          SELECT ps.salt_name, ps.salt_pos
           FROM products_in p
           JOIN product_salts ps ON ps.product_id=p.id
           WHERE p.salt_signature=%s
-          ORDER BY ps.salt_pos
+          ORDER BY ps.salt_pos, ps.salt_name
         """,
             (sig,),
         )
-        return [{"salt_pos": r[1], "salt_name": r[0]} for r in cur.fetchall()]
+        rows = cur.fetchall()
+    # Normalize whitespace + case for dedup, keep first encountered per (normalized,pos)
+    seen = set()
+    out: List[Dict[str, Any]] = []
+    for name, pos in rows:
+        norm_key = (re.sub(r"\s+", " ", name.strip().lower()), pos)
+        if norm_key in seen:
+            continue
+        seen.add(norm_key)
+        # Return salt name cleaned (single spaces) but preserve original casing heuristically via title if excessive spacing
+        clean = re.sub(r"\s+", " ", name.strip())
+        out.append({"salt_pos": pos, "salt_name": clean})
+    return out
 
 def brands_by_signature(sig: str) -> List[Dict[str, Any]]:
     with db() as conn, conn.cursor() as cur:
