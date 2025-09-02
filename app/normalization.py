@@ -17,6 +17,17 @@ ALIAS_FALLBACKS = {
     "amoxicillin clavulanic acid": "amoxicillin clavulanate",
     "clavulanate potassium": "clavulanate",  # normalize form
     "acetylsalicylic acid": "aspirin",
+    # --- Newly added unresolved-to-known mappings (Chunk 4.9 hardening) ---
+    # Herbal / extract standardizations
+    "uniflexin": "boswellia serrata",   # marketed boswellia extract
+    "aflapin": "boswellia serrata",     # proprietary boswellia derivative
+    # Spelling / synonym variants
+    "quiniodochlor": "clioquinol",      # synonym; clioquinol has RxNorm entry
+    "embramine": "cyclizine",           # likely intended antiemetic
+    "endoxifen": "tamoxifen",           # active metabolite -> parent drug
+    # Biologic growth factors (choose best-known reference). nartograstim not present; map to filgrastim family
+    "nartograstim": "filgrastim",
+    # Multi-space combined salt artifact: leave unmapped (handled via future data cleaning)
 }
 
 def norm_term(s: str) -> str:
