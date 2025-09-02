@@ -1,5 +1,15 @@
 import os, sys, time, psycopg, argparse, math
 from dotenv import load_dotenv
+
+# Ensure project root (parent of scripts/) is on sys.path so "app" package resolves
+try:
+    from pathlib import Path as _P
+    _ROOT = _P(__file__).resolve().parents[1]
+    if str(_ROOT) not in sys.path:
+        sys.path.insert(0, str(_ROOT))
+except Exception:
+    pass
+
 from app.rxnorm_client import rxnorm_lookup
 
 load_dotenv()
