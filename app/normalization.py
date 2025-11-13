@@ -39,3 +39,7 @@ def norm_term(s: str) -> str:
 
 def alias_if_needed(term_norm: str) -> str | None:
     return ALIAS_FALLBACKS.get(term_norm)
+
+# Backwards compatibility: previous modules imported normalize_term
+def normalize_term(s: str) -> str:  # pragma: no cover simple wrapper
+    return norm_term(s)

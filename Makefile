@@ -21,6 +21,7 @@ test-agent:
 reindex:
 	OS_USE_ALIAS=1 python -m scripts.reindex_opensearch
 
+
 smoke-search:
 	curl -s 'http://localhost:8000/health' | jq '.search_backend,.search_ok'
 	curl -s 'http://localhost:8000/search?query=para&limit=3' | jq '.'
@@ -88,3 +89,12 @@ backup:
 restore:
 	@if [ -z "$(DUMP)" ]; then echo 'Specify DUMP=filename.dump'; exit 1; fi
 	cat $(DUMP) | docker exec -i medbot_db pg_restore -U appuser -d medbot --clean --if-exists
+
+# --- External fallback chunk helpers ---
+.PHONY: migrate-ext test-ext
+
+migrate-ext:
+	psql "$$DATABASE_URL" -f db/schema_chunk_ext_fallbacks.sql
+
+test-ext:
+	pytest -q tests/test_monograph_fallback_merge.py tests/test_external_gating.py

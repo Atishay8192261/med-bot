@@ -1,0 +1,64 @@
+name: CI
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: medbot
+          POSTGRES_USER: appuser
+          POSTGRES_PASSWORD: apppass
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U appuser -d medbot" --health-interval 5s --health-timeout 5s --health-retries 20
+      opensearch:
+        image: opensearchproject/opensearch:2.13.0
+        env:
+          discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: 'true'
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+        ports: ["9200:9200"]
+        options: >-
+          --health-cmd "curl -s http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=60s || exit 1" --health-interval 10s --health-timeout 10s --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+            python-version: '3.12'
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y build-essential libpq-dev
+      - name: Create virtualenv & install deps
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Initialize database schema
+        run: |
+          . .venv/bin/activate
+          for f in db/schema.sql db/schema_chunk*.sql; do psql postgresql://appuser:apppass@localhost:5432/medbot -f $f; done
+      - name: Ingest minimal data (sample csvs)
+        run: |
+          . .venv/bin/activate
+          python scripts/ingest_india_catalog.py --limit 500 || true
+          python scripts/compute_signatures.py --limit 500 || true
+      - name: Index OpenSearch sample
+        run: |
+          . .venv/bin/activate
+          python scripts/index_to_opensearch.py
+      - name: Run tests
+        env:
+          SEARCH_BACKEND: os
+          NO_EXTERNAL: '1'
+          LLM_ENABLED: '0'
+        run: |
+          . .venv/bin/activate
+          pytest -q

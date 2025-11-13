@@ -1,0 +1,19 @@
+version: "3.9"
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.13.0
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OS_SECURE_PASS:-ChangeMe123!}
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9201:9200"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -sk -u admin:${OS_SECURE_PASS:-ChangeMe123!} https://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=60s | grep -E '\"status\":\"(yellow|green)\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 25

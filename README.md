@@ -94,3 +94,73 @@ curl -s http://localhost:8000/health | jq
 ```
 
 Fallback: if OpenSearch is unreachable at startup and SEARCH_BACKEND=os, service falls back to PGSearchService automatically.
+
+## Fallback Hardening & External Sources (DailyMed / openFDA)
+
+### Runbook
+1. Apply schema (idempotent):
+```bash
+make migrate-ext
+```
+2. Enable external fetching (default `NO_EXTERNAL=0`) and start API:
+```bash
+uvicorn app.main:app --reload
+```
+3. Warm caches naturally via `/monograph` calls. Buckets already present from MedlinePlus are never overridden.
+4. Deterministic (no-network) test mode:
+```bash
+NO_EXTERNAL=1 make test-ext
+```
+5. Optional live smoke tests (skipped unless explicitly marked):
+```bash
+pytest -q -m live
+```
+6. Inspect metrics:
+```bash
+curl -s http://localhost:8000/metrics | head
+```
+
+### Metrics (Prometheus text format)
+Counters (labels inlined for simplicity):
+- `cache_hit_total{source,layer}`
+- `cache_miss_total{source}`
+- `external_call_total{source}`
+- `external_success_total{source}`
+- `external_error_total{source}`
+- `fallback_fill_total{source,bucket}`
+
+Gauge:
+- `app_uptime_seconds`
+
+### Fallback Merge Logic
+For `uses`, `precautions`, `side_effects` only: MedlinePlus primary → fill empty from DailyMed → still empty fill from openFDA (max 4 unique items). Merge events counted via `fallback_fill_total` per source & bucket.
+
+## Frontend Integration (Next.js app in `india-med-bot-frontend`)
+
+The repository includes a Next.js 14 TypeScript frontend (medical theme) that consumes the FastAPI endpoints.
+
+### Backend Config
+Set CORS origins to allow the frontend (defaults to localhost):
+```
+export CORS_ORIGINS=http://localhost:3000
+```
+Health endpoint now exposes both `search_backend` (class name) and stable short code `search_backend_code` ("os" or "pg").
+
+### Frontend Config
+In `india-med-bot-frontend/.env.local` (create if missing):
+```
+NEXT_PUBLIC_API_BASE=http://localhost:8000
+```
+Then run the frontend:
+```
+cd india-med-bot-frontend
+npm install
+npm run dev
+```
+
+### Provenance (Optional)
+Set `INCLUDE_PROVENANCE=1` before starting backend to include an experimental `provenance` array inside `/monograph` responses (used for debugging fallback source fills). Frontend currently ignores it safely.
+
+### Contract Normalization
+`/monograph` now normalizes `sources` into objects `{name,url}` so the UI can reliably render labels and links.
+

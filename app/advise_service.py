@@ -70,7 +70,10 @@ def advise_for(signature: str, brand_name: Optional[str], intent: str, red_flag:
     salts = dbio.get_salts(signature)
     salt_names = [s["salt_name"] for s in salts] if salts else []
 
-    mono = compose_for_signature(salt_names) or {"sections": {}, "sources": []}
+    try:
+        mono = compose_for_signature(salt_names) or {"sections": {}, "sources": []}
+    except Exception:
+        mono = {"sections": {}, "sources": []}
     monosec = mono.get("sections", {})
 
     alt = _cache_get(f"alt:{signature}")

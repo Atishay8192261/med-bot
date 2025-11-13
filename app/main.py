@@ -1,13 +1,31 @@
-import os, psycopg, time, statistics, re
+import os, psycopg, time, statistics, re, requests
 from typing import List, Optional, Tuple, Dict, Any
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from app.search_service import build_search_service, PGSearchService, OpenSearchService
+from app.monograph_service import MonographService, _MONO_SERVICE
 from app.langgraph_agent import run_turn
+from app import metrics
 
 load_dotenv()
 app = FastAPI(title="India Medicine Bot - MVP (Chunks 1-7)")
+
+# Allow local frontend dev servers
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 _search_service = build_search_service()
 
 # Optional OpenTelemetry instrumentation (no-op if not configured)
@@ -82,12 +100,24 @@ def health():
             search_ok = _search_service.is_alive()
         except Exception:
             search_ok = False
+    external = {}
+    if os.getenv("NO_EXTERNAL", "0") != "1":
+        for name, url in [
+            ("dailymed", os.getenv("DAILYMED_BASE", "https://dailymed.nlm.nih.gov")),
+            ("openfda", os.getenv("OPENFDA_BASE", "https://api.fda.gov/drug/label.json")),
+        ]:
+            try:
+                requests.get(url, timeout=3)
+                external[name] = "ok"
+            except Exception:
+                external[name] = "fail"
     return {
         "ok": db_ok and search_ok,
         "db": db_ok,
         "db_error": db_err,
         "search_backend": search_backend,
         "search_ok": search_ok,
+        "external": external,
     }
 
 @app.get("/resolve")
@@ -229,11 +259,22 @@ def monograph(signature: Optional[str] = None, name: Optional[str] = None):
     if not doc:
         raise HTTPException(status_code=404, detail="Monograph not found for signature")
 
+    # Attempt fallback merge if any bucket empty (only uses/precautions/side_effects)
+    sections = doc["sections"] or {}
+    needs = any(not sections.get(k) for k in ("uses","precautions","side_effects"))
+    if needs and os.getenv("NO_EXTERNAL","0") != "1":
+        # Derive ingredient terms from salts_by_signature helper
+        try:
+            salts = salts_by_signature(sig)
+            terms = [s["salt_name"] for s in salts]
+            sections = _MONO_SERVICE.merge_fallbacks(terms, sections)
+        except Exception:
+            pass
     return {
         "title": doc["title"],
         "signature": sig,
         "sources": doc["sources"],
-        "sections": doc["sections"],
+        "sections": sections,
         "disclaimer": DISCLAIMER,
     }
 
@@ -448,3 +489,8 @@ class AgentReply(BaseModel):
 def agent_message(payload: AgentRequest = Body(...)):
     out = run_turn(payload.session_id, payload.message)
     return out
+
+# Prometheus metrics endpoint
+@app.get("/metrics", response_class=PlainTextResponse)
+def metrics_endpoint():
+    return metrics.render_prometheus()

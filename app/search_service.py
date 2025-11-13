@@ -71,10 +71,11 @@ class OpenSearchService(SearchService):
       OS_INDEX_PREFIX (base prefix, used when alias disabled)  
     """
     def __init__(self, url: str, user: str, pwd: str, index_prefix: str = "medbot"):
+        use_ssl = url.startswith("https://")
         self.client = OpenSearch(
             hosts=[url],
             http_auth=(user, pwd) if user and pwd else None,
-            use_ssl=False,
+            use_ssl=use_ssl,
             verify_certs=False,
         )
         self.prefix = index_prefix
@@ -97,7 +98,8 @@ class OpenSearchService(SearchService):
                 "analysis": {
                     "filter": {
                         "indic_norm": {"type": "indic_normalization"},
-                        "my_folding": {"type": "icu_folding"},
+                        # Using built-in asciifolding to avoid requiring ICU plugin locally.
+                        "my_folding": {"type": "asciifolding", "preserve_original": True},
                         "my_syns": {"type": "synonym_graph", "synonyms": self._synonyms},
                         "edge_2_20": {"type": "edge_ngram", "min_gram": 2, "max_gram": 20},
                     },
@@ -193,7 +195,15 @@ class OpenSearchService(SearchService):
                             "salts": r[5] or [],
                         },
                     }
-            helpers.bulk(self.client, _docs(), chunk_size=batch, refresh=True)
+            # Larger timeout to avoid ConnectionTimeout on sizable corpora; single final refresh.
+            helpers.bulk(
+                self.client,
+                _docs(),
+                chunk_size=batch,
+                refresh=False,
+                request_timeout=120,
+            )
+            self.client.indices.refresh(index=target_index)  # type: ignore[attr-defined]
         log.info("Indexed %s documents to %s", count, self.index or self.alias)
         return count
 

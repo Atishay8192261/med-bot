@@ -110,6 +110,8 @@ def medline_search(ingredient: str) -> Tuple[Optional[str], Optional[str], Dict[
         f"{ingredient} tablet",
         f"{ingredient} medication",
     ]
+    if os.getenv("NO_EXTERNAL", "0") in ("1","true","yes"):
+        return None, None, {}
     for q in queries:
         t, u, raw = _try(q)
         if u:
@@ -164,6 +166,8 @@ def get_or_fetch_ingredient_topic(ingredient: str) -> Optional[Dict[str, Any]]:
     if cached:
         return cached
 
+    if os.getenv("NO_EXTERNAL", "0") in ("1","true","yes"):
+        return None
     title, url, raw = medline_search(ingredient)
     if not url:
         return None
@@ -178,6 +182,8 @@ def get_or_fetch_ingredient_topic_with_fallback(ingredient: str) -> Optional[Dic
     if primary and primary.get("sections"):
         return primary
     # DailyMed fallback
+    if os.getenv("NO_EXTERNAL", "0") in ("1","true","yes"):
+        return primary
     hit = search_label(ingredient)
     if hit and (sid := hit.get("setid")):
         sections = get_sections_by_setid(sid)
@@ -188,11 +194,15 @@ def get_or_fetch_ingredient_topic_with_fallback(ingredient: str) -> Optional[Dic
                 "sections": sections,
             }
     # openFDA fallback
-    sec = fetch_by_ingredient(ingredient)
-    if sec:
-        return {
-            "title": f"{ingredient} (openFDA)",
-            "url": "https://api.fda.gov/drug/label",
-            "sections": sec,
-        }
+    if os.getenv("NO_EXTERNAL", "0") not in ("1","true","yes"):
+        try:
+            sec = fetch_by_ingredient(ingredient)
+            if sec:
+                return {
+                    "title": f"{ingredient} (openFDA)",
+                    "url": "https://api.fda.gov/drug/label",
+                    "sections": sec,
+                }
+        except Exception:
+            pass
     return primary

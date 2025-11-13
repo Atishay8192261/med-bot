@@ -15,7 +15,9 @@ def main():
         os.getenv("OS_INDEX_PREFIX", "medbot"),
     )
     svc.ensure_index()
-    n = svc.bulk_index_from_pg(conn)
+    batch = int(os.getenv("OS_BULK_CHUNK", "1000"))
+    print(f"Indexing with chunk size {batch} ...")
+    n = svc.bulk_index_from_pg(conn, batch=batch)
     print(f"Indexed {n} docs")
 
 
